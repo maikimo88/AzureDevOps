@@ -1,9 +1,9 @@
 targetScope = 'resourceGroup'
 
 param location string = resourceGroup().location
-param baseTime string = utcNow('u') // Bepaal de huidige tijd voor het registratietoken
+param baseTime string = utcNow('u')
 
-// 1. Host Pool (inclusief token generatie voor de Session Host)
+// 1. Host Pool
 resource hostPool 'Microsoft.DesktopVirtualization/hostPools@2023-09-05' = {
   name: 'avdpool-kraanlab-prod-01'
   location: location
@@ -12,19 +12,13 @@ resource hostPool 'Microsoft.DesktopVirtualization/hostPools@2023-09-05' = {
     loadBalancerType: 'BreadthFirst'
     preferredAppGroupType: 'Desktop'
     registrationInfo: {
-      expirationTime: dateTimeAdd(baseTime, 'PT2H') // Token is 2 uur geldig
+      expirationTime: dateTimeAdd(baseTime, 'PT2H')
       registrationTokenOperation: 'Update'
     }
   }
 }
 
-// 2. Workspace
-resource workspace 'Microsoft.DesktopVirtualization/workspaces@2023-09-05' = {
-  name: 'vdow-klant-prod-01'
-  location: location
-}
-
-// 3. Application Group
+// 3. Application Group (zetten we even voor de workspace zodat we de ID kunnen gebruiken)
 resource appGroup 'Microsoft.DesktopVirtualization/applicationGroups@2023-09-05' = {
   name: 'vdag-klant-prod-desktop'
   location: location
@@ -34,20 +28,21 @@ resource appGroup 'Microsoft.DesktopVirtualization/applicationGroups@2023-09-05'
   }
 }
 
-// 4. Koppel App Group aan Workspace
-resource workspaceAppGroupAssociation 'Microsoft.DesktopVirtualization/workspaces/applicationGroupReferences@2023-09-05' = {
-  parent: workspace
-  name: 'default'
+// 2. Workspace (inclusief directe referentie naar de appGroup om fouten tevoorkomen)
+resource workspace 'Microsoft.DesktopVirtualization/workspaces@2023-09-05' = {
+  name: 'vdow-klant-prod-01'
+  location: location
   properties: {
-    applicationGroupReference: appGroup.id
+    applicationGroupReferences: [
+      appGroup.id
+    ]
   }
 }
 
 // ==========================================
-// 5. SESSION HOST: biceps-avd-01
+// 4. SESSION HOST: biceps-avd-01
 // ==========================================
 
-// Netwerkkaart voor de VM
 resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   name: 'nic-biceps-avd-01'
   location: location
@@ -57,7 +52,6 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
         name: 'ipconfig1'
         properties: {
           subnet: {
-            // Verwijs naar het subnet dat via vnet.bicep is aangemaakt
             id: resourceId('Microsoft.Network/virtualNetworks/subnets', 'vnet-lab-core-01', 'snet-internal')
           }
           privateIPAllocationMethod: 'Dynamic'
@@ -67,7 +61,6 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   }
 }
 
-// De Windows 11 Virtuele Machine
 resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: 'biceps-avd-01'
   location: location
@@ -104,7 +97,6 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   }
 }
 
-// Extensie 1: Entra ID (Azure AD) Join
 resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   parent: vm
   name: 'AADLoginForWindows'
@@ -116,12 +108,11 @@ resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   }
 }
 
-// Extensie 2: AVD Sessie Host Registratie
 resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   parent: vm
   name: 'AVDSessionHostRegistration'
   dependsOn: [
-    entraJoin // Wacht tot Entra ID join klaar is
+    entraJoin
   ]
   properties: {
     publisher: 'Microsoft.Powershell'
@@ -137,7 +128,6 @@ resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
     }
     protectedSettings: {
       properties: {
-        // Gebruik het zojuist gegenereerde token uit de Host Pool
         registrationInfoToken: hostPool.properties.registrationInfo.token
       }
     }
