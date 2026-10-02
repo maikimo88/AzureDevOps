@@ -12,3 +12,11 @@ steps:
     scriptLocation: 'inlineScript'
     inlineScript: |
       az deployment sub create --location "westeurope" --template-file main.bicep
+
+schedules:
+- cron: "0 2 * * *"
+  displayName: "Dagelijkse nachtelijke infrastructuur check"
+  branches:
+    include:
+    - non-existent-branch-xyz # <-- Hierdoor triggert hij nooit automatisch
+  always: true
