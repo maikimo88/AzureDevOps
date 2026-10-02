@@ -12,12 +12,6 @@ module vnetModule './vnet.bicep' = {
   scope: rg
 }
 
-// Hier roepen we de nieuwe AVD module aan
-module avdModule './avd.bicep' = {
-  name: 'avdDeployment'
-  scope: rg
-}
-
 // Hier roepen we de nieuwe Storage module aan
 module storageModule './storage.bicep' = {
   name: 'storageDeployment'
