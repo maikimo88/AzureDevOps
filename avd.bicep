@@ -38,6 +38,7 @@ resource appGroup 'Microsoft.DesktopVirtualization/applicationGroups@2023-09-05'
 resource workspaceAppGroupAssociation 'Microsoft.DesktopVirtualization/workspaces/applicationGroupReferences@2023-09-05' = {
   parent: workspace
   name: 'default'
+  location: location // <-- DEZE ONTBRAK EN VEROORAAKTE DE FOUT
   properties: {
     applicationGroupReference: appGroup.id
   }
