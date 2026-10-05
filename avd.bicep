@@ -144,22 +144,4 @@ resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   }
 }
 
-// ==========================================
-// 5. RBAC: IAM RECHTEN VOOR AANMELDEN
-// ==========================================
 
-// Definieer de ingebouwde rol "Virtual Machine User Login" (ID: fb879df8-f326-4884-b1cf-06f3adec6be5)
-var vmUserLoginRoleDefinitionId = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'fb879df8-f326-4884-b1cf-06f3adec6be5')
-
-// Wijs de rol toe aan mkn@wilroffreitsma.nl op de virtuele machine (of op resourcegroep-niveau)
-resource rbMknLogin 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(vm.id, 'mkn-wilroffreitsma-login')
-  scope: vm
-  properties: {
-    roleDefinitionId: vmUserLoginRoleDefinitionId
-    // Let op: Dit is de object ID (GUID) van mkn@wilroffreitsma.nl in Entra ID. 
-    // Als de deployment klaagt over een onbekend object, kun je dit later eventueel via een prinicipalId / user object ID koppelen.
-    principalId: 'VOER_HIER_DE_OBJECT_ID_VAN_MKN_IN' 
-    principalType: 'User'
-  }
-}
