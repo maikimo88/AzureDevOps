@@ -113,14 +113,12 @@ resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   }
 }
 
-// 7. Extensie: AVD Sessie Host Registratie (Voegt VM toe aan de Host Pool)
+// 7. Extensie: AVD Sessie Host Registratie (Optioneel / tijdelijk uitgeschakeld voor stabiele deployment)
+/*
 resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   parent: vm
   name: 'AVDSessionHostRegistration'
   location: location
-  dependsOn: [
-    entraJoin
-  ]
   properties: {
     publisher: 'Microsoft.Powershell'
     type: 'DSC'
@@ -133,10 +131,6 @@ resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
         HostPoolName: hostPool.name
       }
     }
-    protectedSettings: {
-      properties: {
-        registrationInfoToken: hostPool.properties.registrationInfo.token
-      }
-    }
   }
 }
+*/
