@@ -17,3 +17,11 @@ module storageModule './storage.bicep' = {
   name: 'storageDeployment'
   scope: rg
 }
+
+// Aanroep van de nieuwe AVD module
+module avdDeployment 'avd.bicep' = {
+  name: 'avdDeployment-02'
+  params: {
+    location: location
+  }
+}
