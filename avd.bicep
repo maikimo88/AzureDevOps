@@ -3,7 +3,6 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 param baseTime string = utcNow('u')
 
-// Unieke nieuwe namen voor lab / productie
 param hostPoolName string = 'avdpool-kraanlab-prod-02'
 param workspaceName string = 'vdow-klant-prod-02'
 param appGroupName string = 'vdag-klant-prod-desktop-02'
@@ -34,7 +33,7 @@ resource appGroup 'Microsoft.DesktopVirtualization/applicationGroups@2023-09-05'
   }
 }
 
-// 3. Workspace (inclusief directe referentie naar de appGroup)
+// 3. Workspace
 resource workspace 'Microsoft.DesktopVirtualization/workspaces@2023-09-05' = {
   name: workspaceName
   location: location
@@ -45,11 +44,7 @@ resource workspace 'Microsoft.DesktopVirtualization/workspaces@2023-09-05' = {
   }
 }
 
-// ==========================================
-// 4. SESSION HOST & CONFIGURATIE
-// ==========================================
-
-// Netwerkkaart voor de VM (koppelt aan bestaand VNet / Subnet)
+// 4. Netwerkkaart voor de VM
 resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   name: 'nic-${vmName}'
   location: location
@@ -68,7 +63,7 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
   }
 }
 
-// De Windows 11 AVD Virtuele Machine
+// 5. De Virtuele Machine
 resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   name: vmName
   location: location
@@ -105,10 +100,11 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
   }
 }
 
-// Extensie 1: Entra ID (Azure AD) Join voor de Session Host
+// 6. Extensie: Entra ID (Azure AD) Join (Met expliciete location om LocationRequired te voorkomen)
 resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   parent: vm
   name: 'AADLoginForWindows'
+  location: location
   properties: {
     publisher: 'Microsoft.Azure.ActiveDirectory'
     type: 'AADLoginForWindows'
@@ -117,10 +113,11 @@ resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   }
 }
 
-// Extensie 2: AVD Sessie Host Registratie (Voegt VM toe aan de Host Pool)
+// 7. Extensie: AVD Sessie Host Registratie (Voegt VM toe aan de Host Pool)
 resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
   parent: vm
   name: 'AVDSessionHostRegistration'
+  location: location
   dependsOn: [
     entraJoin
   ]
@@ -143,5 +140,3 @@ resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
     }
   }
 }
-
-
