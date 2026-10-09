@@ -11,12 +11,19 @@ steps:
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
-      az deployment sub create --location "westeurope" --template-file main.bicep
+      set -euo pipefail
+      if [ -z "${VM_ADMIN_PASSWORD:-}" ] || [ "$VM_ADMIN_PASSWORD" = '$(vmAdminPassword)' ]; then
+        echo 'Configure a secret Azure DevOps pipeline variable named vmAdminPassword before deploying.' >&2
+        exit 1
+      fi
+      az deployment sub create --location 'westeurope' --template-file main.bicep --parameters vmAdminPassword="$VM_ADMIN_PASSWORD"
+  env:
+    VM_ADMIN_PASSWORD: $(vmAdminPassword)
 
 schedules:
-- cron: "0 2 * * *"
-  displayName: "Dagelijkse nachtelijke infrastructuur check"
+- cron: '0 2 * * *'
+  displayName: 'Dagelijkse nachtelijke infrastructuur check'
   branches:
     include:
-    - non-existent-branch-xyz # <-- Hierdoor triggert hij nooit automatisch
+    - non-existent-branch-xyz # Intentional: schedule does not trigger automatically.
   always: true

@@ -3,15 +3,30 @@ targetScope = 'resourceGroup'
 param location string = resourceGroup().location
 param baseTime string = utcNow('u')
 
+@description('Local administrator password for the AVD VMs; do not commit a literal password.')
+@secure()
+param vmAdminPassword string
+
 param hostPoolName string = 'avdpool-kraanlab-prod-02'
 param workspaceName string = 'vdow-klant-prod-02'
 param appGroupName string = 'vdag-klant-prod-desktop-02'
-param vmName string = 'biceps-avd-02'
 
-// 1. Host Pool
+// Keep the existing VM and add a second host to the same pooled host pool.
+var vmNames = [
+  'biceps-avd-02'
+  'biceps-avd-03'
+]
+
+var resourceTags = {
+  environment: 'lab'
+  workload: 'avd'
+  managedBy: 'bicep'
+}
+
 resource hostPool 'Microsoft.DesktopVirtualization/hostPools@2023-09-05' = {
   name: hostPoolName
   location: location
+  tags: resourceTags
   properties: {
     hostPoolType: 'Pooled'
     loadBalancerType: 'BreadthFirst'
@@ -23,20 +38,20 @@ resource hostPool 'Microsoft.DesktopVirtualization/hostPools@2023-09-05' = {
   }
 }
 
-// 2. Application Group
 resource appGroup 'Microsoft.DesktopVirtualization/applicationGroups@2023-09-05' = {
   name: appGroupName
   location: location
+  tags: resourceTags
   properties: {
     applicationGroupType: 'Desktop'
     hostPoolArmPath: hostPool.id
   }
 }
 
-// 3. Workspace
 resource workspace 'Microsoft.DesktopVirtualization/workspaces@2023-09-05' = {
   name: workspaceName
   location: location
+  tags: resourceTags
   properties: {
     applicationGroupReferences: [
       appGroup.id
@@ -44,10 +59,10 @@ resource workspace 'Microsoft.DesktopVirtualization/workspaces@2023-09-05' = {
   }
 }
 
-// 4. Netwerkkaart voor de VM
-resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
-  name: 'nic-${vmName}'
+resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = [for name in vmNames: {
+  name: 'nic-${name}'
   location: location
+  tags: resourceTags
   properties: {
     ipConfigurations: [
       {
@@ -61,20 +76,20 @@ resource nic 'Microsoft.Network/networkInterfaces@2023-09-01' = {
       }
     ]
   }
-}
+}]
 
-// 5. De Virtuele Machine
-resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
-  name: vmName
+resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = [for (name, index) in vmNames: {
+  name: name
   location: location
+  tags: resourceTags
   properties: {
     hardwareProfile: {
       vmSize: 'Standard_D2s_v5'
     }
     osProfile: {
-      computerName: vmName
+      computerName: name
       adminUsername: 'azureadmin'
-      adminPassword: 'P@ssw0rd12345!Secure'
+      adminPassword: vmAdminPassword
     }
     storageProfile: {
       imageReference: {
@@ -93,16 +108,15 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-09-01' = {
     networkProfile: {
       networkInterfaces: [
         {
-          id: nic.id
+          id: nic[index].id
         }
       ]
     }
   }
-}
+}]
 
-// 6. Extensie: Entra ID (Azure AD) Join (Met expliciete location om LocationRequired te voorkomen)
-resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
-  parent: vm
+resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = [for (name, index) in vmNames: {
+  parent: vm[index]
   name: 'AADLoginForWindows'
   location: location
   properties: {
@@ -111,12 +125,13 @@ resource entraJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
     typeHandlerVersion: '1.0'
     autoUpgradeMinorVersion: true
   }
-}
+}]
 
-// 7. Extensie: AVD Sessie Host Registratie (Optioneel / tijdelijk uitgeschakeld voor stabiele deployment)
-/*
-resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
-  parent: vm
+// Entra join alone does not register a VM with AVD. Register the new VM
+// through the host pool registration token in encrypted extension settings.
+// The existing VM is intentionally not modified with a new DSC extension.
+resource newHostRegistration 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
+  parent: vm[1]
   name: 'AVDSessionHostRegistration'
   location: location
   properties: {
@@ -128,9 +143,17 @@ resource avdJoin 'Microsoft.Compute/virtualMachines/extensions@2023-09-01' = {
       modulesUrl: 'https://wvdportalstorageblob.blob.core.windows.net/galleryartifacts/Configuration_1.0.02714.342.zip'
       configurationFunction: 'Configuration.ps1\\AddSessionHost'
       properties: {
-        HostPoolName: hostPool.name
+        hostPoolName: hostPool.name
+        aadJoin: true
+      }
+    }
+    protectedSettings: {
+      properties: {
+        registrationInfoToken: reference(hostPool.id).registrationInfo.token
       }
     }
   }
+  dependsOn: [
+    entraJoin[1]
+  ]
 }
-*/
