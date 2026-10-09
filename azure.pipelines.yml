@@ -6,13 +6,27 @@ pool:
 
 steps:
 - task: AzureCLI@2
+  displayName: 'Validate Bicep template'
   inputs:
     azureSubscription: 'AzureLabConnectionKraan'
     scriptType: 'bash'
     scriptLocation: 'inlineScript'
     inlineScript: |
       set -euo pipefail
-      if [ -z "${VM_ADMIN_PASSWORD:-}" ] || [ "$VM_ADMIN_PASSWORD" = '$(vmAdminPassword)' ]; then
+      az bicep build --file main.bicep
+
+- task: AzureCLI@2
+  displayName: 'Deploy Bicep on main only'
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  inputs:
+    azureSubscription: 'AzureLabConnectionKraan'
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      set -euo pipefail
+      # Do not include the complete Azure DevOps macro in inlineScript: the
+      # pipeline substitutes it before Bash runs, even inside shell quotes.
+      if [ -z "${VM_ADMIN_PASSWORD:-}" ] || { [ "${VM_ADMIN_PASSWORD:0:1}" = '$' ] && [ "${VM_ADMIN_PASSWORD:1:1}" = '(' ]; }; then
         echo 'Configure a secret Azure DevOps pipeline variable named vmAdminPassword before deploying.' >&2
         exit 1
       fi
